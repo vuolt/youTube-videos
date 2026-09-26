@@ -49,15 +49,16 @@ A full render takes several minutes per minute of video on a laptop, so `--still
 
 ## Recording the voice-over
 
-On a Mac, double-click **Recording Booth.command** in the repository folder (or run `python3 record.py`). The recording booth opens in your browser; keep the Terminal window it opens running while you record. Pick the video you're working on, and it shows one script line at a time, with that line's moment of the animation looping next to it (run `./make.sh` once first, so there's an animation to show).
+On a Mac, double-click **Recording Booth.command** in the repository folder (or run `python3 record.py`). The first time, it installs what it needs, which takes a few minutes; after that it opens straight away. Keep the Terminal window it opens running while you work.
+
+The booth opens in your browser. Pick the video you're working on, and it shows one script line at a time, with that line's moment of the animation looping next to it.
 
 - **Space** starts recording; **Space** again saves the take as `vo/023.wav` and moves to the next line. Recording a line again replaces it; the previous take is kept in `vo/.previous/`.
 - **P** plays the take back, **←/→** move between lines, and the strip at the bottom shows what's done. Stop any time and carry on later: it picks up at the first unrecorded line.
+- **Build video** (top right) runs the whole build for that video, with a progress panel. Do it once before recording, so there's an animation to show, and again whenever you want to hear your recordings in the video. Lines not recorded yet keep their estimated timing.
 - The **Review** tab plays the last build with the script highlighted as it's spoken. **F** flags a line for a retake, **R** jumps back to record it.
 
-Then stop the booth (Ctrl+C) and run `./make.sh 01`. It also builds with lines still missing: those keep their estimated timing. Silence at the start and end of each take is trimmed automatically.
-
-Alternatively, record everything in one go as `vo/take.wav` (or `.m4a`) with a clear 2-second pause between lines; it's split into lines automatically.
+Silence at the start and end of each take is trimmed automatically. Alternatively, record everything in one go as `vo/take.wav` (or `.m4a`) with a clear 2-second pause between lines; it's split into lines automatically.
 
 Subtitles go into the video as a switchable track, and `build/subtitles.srt` is the file to upload to YouTube as captions.
 

@@ -15,11 +15,12 @@ with some lines still missing too (they keep their estimated timing).
 
 Standard library only; needs ffprobe (part of ffmpeg) for video durations.
 """
-import argparse, glob, json, os, re, shutil, subprocess, sys, threading, webbrowser
+import argparse, collections, glob, json, os, re, shutil, subprocess, sys, threading, time, webbrowser
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
-ENGINE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'engine')
+ROOT = os.path.dirname(os.path.abspath(__file__))
+ENGINE = os.path.join(ROOT, 'engine')
 sys.path.insert(0, ENGINE)
 from video import videos, parse, title  # noqa: E402  (each script.md is the single source of its lines)
 
@@ -83,6 +84,40 @@ def takes(V):
         if m:
             out[int(m.group(1))] = {'mtime': os.path.getmtime(p), 'file': os.path.basename(p)}
     return out
+
+
+class Builds:
+    """Runs ./make.sh for one video at a time and keeps its output for the page."""
+    def __init__(self):
+        self.lock, self.cur = threading.Lock(), None
+
+    def start(self, V):
+        with self.lock:
+            if self.cur and self.cur['code'] is None:
+                return False
+            env = dict(os.environ)
+            env.setdefault('WORKERS', str(max(2, (os.cpu_count() or 4) - 2)))
+            proc = subprocess.Popen(['bash', os.path.join(ROOT, 'make.sh'), V], cwd=ROOT, env=env, text=True,
+                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1)
+            self.cur = {'video': os.path.basename(V), 'proc': proc, 'code': None, 'started': time.time(),
+                        'lines': collections.deque(maxlen=300)}
+            threading.Thread(target=self._pump, args=(self.cur,), daemon=True).start()
+            return True
+
+    def _pump(self, b):
+        for line in b['proc'].stdout:
+            b['lines'].append(line.rstrip())
+        b['code'] = b['proc'].wait()
+
+    def status(self):
+        b = self.cur
+        if not b:
+            return {'running': False}
+        return {'video': b['video'], 'running': b['code'] is None, 'code': b['code'],
+                'elapsed': round(time.time() - b['started']), 'lines': list(b['lines'])}
+
+
+BUILDS = Builds()
 
 
 class Booth(BaseHTTPRequestHandler):
@@ -173,6 +208,8 @@ class Booth(BaseHTTPRequestHandler):
                             'recorded': sum(1 for L in lines if L['n'] in tk),
                             'last': max([t['mtime'] for t in tk.values()], default=0)})
             return self.send_json(out)
+        if path == '/api/build':
+            return self.send_json(BUILDS.status())
         V = self.video()
         if not V:
             return self.send_error(404, 'unknown video')
@@ -190,6 +227,7 @@ class Booth(BaseHTTPRequestHandler):
                            'final': [ft[L['n']]['start'], ft[L['n']]['end']] if L['n'] in ft else None,
                            'take': tk.get(L['n'])} for L in lines],
                 'preview': bool(prev),
+                'previewMtime': os.path.getmtime(os.path.join(V, 'build', 'booth', 'preview.mp4')) if prev else None,
                 'final': os.path.basename(fv) if fv else None,
                 'finalMtime': os.path.getmtime(fv) if fv else None,
                 'finalMode': ftl['mode'] if ftl else None,
@@ -206,6 +244,11 @@ class Booth(BaseHTTPRequestHandler):
         self.send_error(404)
 
     def do_POST(self):
+        if urlparse(self.path).path == '/api/build':
+            V = self.video()
+            if not V:
+                return self.send_error(404, 'unknown video')
+            return self.send_json({'started': BUILDS.start(V), **BUILDS.status()})
         m = re.match(r'/api/take/(\d{3})$', urlparse(self.path).path)
         V = self.video()
         n = int(self.headers.get('Content-Length') or 0)
@@ -235,13 +278,13 @@ def main():
     print(f'Recording booth: {url}   (Ctrl+C to stop)')
     for V in videos():
         if not refresh_preview(V):
-            print(f'{os.path.basename(V)}: no animation preview yet. Run ./make.sh once so the booth can show each line\'s animation.')
+            print(f'{os.path.basename(V)}: no animation preview yet (use Build video in the booth).')
     if not a.no_browser:
         threading.Timer(0.6, lambda: webbrowser.open(url)).start()
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
-        print('\nStopped. Next: ./make.sh <video> to build it with your voice.')
+        print('\nStopped.')
 
 
 if __name__ == '__main__':

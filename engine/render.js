@@ -28,7 +28,7 @@ async function segment(f0, f1, out) {
     await p.evaluate(t => renderFrame(t), f / fps);
     const buf = await p.screenshot({ type: 'jpeg', quality: 93 });
     if (!ff.stdin.write(buf)) await new Promise(r => ff.stdin.once('drain', r));
-    if ((f - f0) % 300 === 0) console.log(`${path.basename(out)} ${f - f0}/${f1 - f0} ${((Date.now() - t0) / 1000).toFixed(0)}s`);
+    if ((f - f0) % 150 === 0) console.log(`${path.basename(out)} ${f - f0}/${f1 - f0} ${((Date.now() - t0) / 1000).toFixed(0)}s`);
   }
   ff.stdin.end(); await new Promise(r => ff.on('close', r)); await browser.close();
 }

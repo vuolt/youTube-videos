@@ -52,6 +52,7 @@ main.on{display:flex}
 @keyframes blink{50%{opacity:.25}}
 .btn{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 14px;cursor:pointer}
 .btn:hover{border-color:var(--faint)}
+.btn:disabled{opacity:.55;cursor:default}
 .btn.big{background:var(--pink);border-color:var(--pink);color:#fff;font-weight:600;padding:10px 20px}
 .btn.big.stop{background:var(--panel2);border-color:var(--pink);color:var(--pink)}
 .keys{color:var(--faint);font-size:13px;padding:0 28px 10px}
@@ -91,6 +92,16 @@ main.on{display:flex}
 #start p{color:var(--dim)}
 #toast{position:fixed;bottom:78px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);padding:9px 16px;border-radius:10px;opacity:0;transition:opacity .2s;pointer-events:none}
 #toast.show{opacity:1}
+#bp{position:fixed;right:20px;bottom:74px;width:min(440px,92vw);background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:14px 16px;z-index:8;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+#bp .bphead{display:flex;justify-content:space-between;gap:10px}
+#bp .bphead span{color:var(--dim);font-size:13px}
+#bp .bar{height:6px;border-radius:3px;background:var(--line);margin:10px 0 8px;overflow:hidden}
+#bp .bar i{display:block;height:100%;width:0;background:var(--cyan);transition:width .4s}
+#bp.fail{border-color:var(--pink)} #bp.fail .bar i{background:var(--pink)}
+#bp.ok{border-color:var(--green)} #bp.ok .bar i{background:var(--green)}
+#bpLine{color:var(--dim);font-size:13px;margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#bp .btn{padding:4px 10px;font-size:13px}
+#bpLog{max-height:220px;overflow:auto;background:var(--bg);border-radius:8px;padding:8px;font-size:11px;color:var(--dim);white-space:pre-wrap;margin:10px 0 0}
 </style>
 </head>
 <body>
@@ -98,6 +109,7 @@ main.on{display:flex}
   <select id="vid" title="Video"></select>
   <div class="tabs"><button id="tabRec" class="on">Record</button><button id="tabRev">Review</button></div>
   <div class="spacer"></div>
+  <button class="btn" id="buildBtn" title="Build the video with the recordings so far">Build video</button>
   <span class="count" id="count"></span>
   <div class="meter" id="meter" title="Microphone level"><i></i></div>
   <select id="mic" title="Microphone"></select>
@@ -107,7 +119,9 @@ main.on{display:flex}
   <div class="stage">
     <div>
       <div class="vidwrap"><video id="pv" muted playsinline preload="auto"></video>
-        <div class="none" id="pvNone" hidden>No animation preview yet.<br>Run <b>./make.sh</b> once, then reload this page.</div></div>
+        <div class="none" id="pvNone" hidden><div>No animation preview yet: this video hasn't been built.<br>
+          <button class="btn big" id="buildBtn2" style="margin:16px 0 10px">Build it now</button><br>
+          <small>Takes a few minutes. You can start recording while it builds.</small></div></div></div>
       <div class="note">Shows what's on screen during this line. The timing is only a preview: take the line at your own pace, and the video will be re-timed to your voice.</div>
     </div>
     <div class="prompter">
@@ -144,6 +158,13 @@ main.on{display:flex}
   <p id="startErr" style="color:var(--pink)"></p>
 </div></div>
 <div id="toast"></div>
+<div id="bp" hidden>
+  <div class="bphead"><b id="bpStage"></b><span id="bpTime"></span></div>
+  <div class="bar"><i id="bpBar"></i></div>
+  <div id="bpLine"></div>
+  <button class="btn" id="bpLogBtn">Show details</button> <button class="btn" id="bpClose" hidden>Close</button>
+  <pre id="bpLog" hidden></pre>
+</div>
 
 <script>
 const $ = id => document.getElementById(id);
@@ -217,7 +238,8 @@ function loopPreview(once) {
   const l = S.lines[idx];
   $('pvNone').hidden = !!S.preview;
   if (!S.preview || !l.preview) { seg = null; pv.pause(); return; }
-  if (pv.dataset.for !== VID) { pv.src = '/preview.mp4?' + q(); pv.dataset.for = VID; }
+  const psrc = '/preview.mp4?' + q() + '&t=' + S.previewMtime;
+  if (pv.dataset.src !== psrc) { pv.src = psrc; pv.dataset.src = psrc; }
   seg = [Math.max(0, l.preview[0] - 0.4), l.preview[1] + 0.6];
   holdAtEnd = once;
   pv.currentTime = seg[0];
@@ -296,7 +318,7 @@ async function stopRec() {
   else toast(`Line ${l.n} saved (${(pcm.length / sr).toFixed(1)} s)`);
   if (idx < S.lines.length - 1) idx++;
   showLine();
-  if (S.lines.every(x => x.take)) toast('All lines recorded! Stop the booth (Ctrl+C) and run ./make.sh');
+  if (S.lines.every(x => x.take)) toast('All lines recorded! Press Build video to put your voice in the video.');
 }
 function wav(pcm, sr) {
   const buf = new ArrayBuffer(44 + pcm.length * 2), v = new DataView(buf);
@@ -332,12 +354,12 @@ function buildLines() {
 }
 function setupFinal() {
   const b = $('revBanner'); b.hidden = false; b.className = 'banner';
-  if (!S.final) { fv.removeAttribute('src'); fv.dataset.src = ''; b.innerHTML = 'No full build yet. Record some lines, stop the booth, run <b>./make.sh</b>, then start the booth again.'; return; }
+  if (!S.final) { fv.removeAttribute('src'); fv.dataset.src = ''; b.innerHTML = 'No build yet. Press <b>Build video</b> at the top to make one.'; return; }
   const want = '/final.mp4?' + q() + '&t=' + S.finalMtime;
   if (fv.dataset.src !== want) { fv.src = want; fv.dataset.src = want; }
   const newer = S.lines.filter(l => l.take && l.take.mtime > S.finalMtime).length;
-  if (S.finalMode === 'estimate') { b.classList.add('warn'); b.innerHTML = 'This build has no voice yet (timing is estimated). Record lines, then run <b>./make.sh</b>.'; }
-  else if (newer) { b.classList.add('warn'); b.innerHTML = `${newer} line${newer > 1 ? 's' : ''} recorded since this build. Run <b>./make.sh</b> to hear them in the video.`; }
+  if (S.finalMode === 'estimate') { b.classList.add('warn'); b.innerHTML = 'This build has no voice yet (the timing is estimated). Record some lines, then press <b>Build video</b>.'; }
+  else if (newer) { b.classList.add('warn'); b.innerHTML = `${newer} line${newer > 1 ? 's' : ''} recorded since this build. Press <b>Build video</b> to hear them in the video.`; }
   else b.textContent = `Playing the last build: ${S.final}`;
 }
 function curFinalLine() {
@@ -389,6 +411,64 @@ document.addEventListener('keydown', e => {
     else if (k === 'r' || k === 'R') { const l = curFinalLine(); if (l) { idx = S.lines.indexOf(l); setMode('rec'); } }
   }
 });
+// ---------------- building ----------------
+let buildWasRunning = false;
+function parseBuild(lines) {
+  let stage = 'Starting', segs = {};
+  for (const l of lines) {
+    if (/^(estimate|vo-files|vo-take):/.test(l)) stage = 'Timing the lines';
+    else if (/^audio:/.test(l)) stage = 'Mixing the sound';
+    else if (/^subtitles\.srt/.test(l)) stage = 'Rendering frames';
+    const m = l.match(/^seg(\d+)\.mp4 (\d+)\/(\d+)/);
+    if (m) { segs[m[1]] = [+m[2], +m[3]]; stage = 'Rendering frames'; }
+    if (/^wrote .*picture\.mp4/.test(l)) stage = 'Adding sound and subtitles';
+  }
+  const v = Object.values(segs);
+  const pct = v.length ? v.reduce((a, x) => a + x[0], 0) / v.reduce((a, x) => a + x[1], 0) : null;
+  return { stage, pct };
+}
+const mmss = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+async function pollBuild() {
+  let b; try { b = await (await fetch('/api/build')).json(); } catch (e) { return; }
+  const bp = $('bp');
+  $('buildBtn').disabled = $('buildBtn2').disabled = !!b.running;
+  $('buildBtn').textContent = b.running ? 'Building…' : 'Build video';
+  $('buildBtn2').textContent = b.running ? 'Building…' : 'Build it now';
+  if (!b.running && !buildWasRunning) return;
+  bp.hidden = false;
+  const lines = b.lines || [], p = parseBuild(lines), other = b.video && b.video !== VID ? ` (${b.video})` : '';
+  $('bpLog').textContent = lines.slice(-120).join('\n');
+  if (b.running) {
+    buildWasRunning = true; bp.className = '';
+    $('bpStage').textContent = p.stage + (p.pct != null ? ` · ${Math.round(p.pct * 100)}%` : '') + other;
+    $('bpBar').style.width = (p.pct != null ? 8 + 90 * p.pct : 4) + '%';
+    $('bpTime').textContent = mmss(b.elapsed);
+    $('bpLine').textContent = lines[lines.length - 1] || '';
+    $('bpClose').hidden = true;
+    setTimeout(pollBuild, 1000);
+  } else {
+    buildWasRunning = false; $('bpClose').hidden = false; $('bpBar').style.width = '100%';
+    if (b.code === 0) {
+      bp.className = 'ok'; $('bpStage').textContent = 'Build finished' + other; $('bpLine').textContent = 'The preview and the Review tab now use this build.';
+      await load(true); if (mode === 'rev') setMode('rev');
+    } else {
+      bp.className = 'fail'; $('bpStage').textContent = 'Build failed' + other; $('bpLine').textContent = 'See the details below.';
+      $('bpLog').hidden = false; $('bpLogBtn').textContent = 'Hide details';
+    }
+  }
+}
+async function startBuild() {
+  if (!VID) return;
+  const r = await (await fetch('/api/build?' + q(), { method: 'POST' })).json();
+  if (!r.started) toast('A build is already running.');
+  buildWasRunning = true; $('bpLog').hidden = true; $('bpLogBtn').textContent = 'Show details';
+  pollBuild();
+}
+$('buildBtn').onclick = e => { e.target.blur(); startBuild(); };
+$('buildBtn2').onclick = e => { e.target.blur(); startBuild(); };
+$('bpLogBtn').onclick = e => { e.target.blur(); const h = !$('bpLog').hidden; $('bpLog').hidden = h; e.target.textContent = h ? 'Show details' : 'Hide details'; };
+$('bpClose').onclick = () => { $('bp').hidden = true; };
+
 async function pickVideo(id) {
   if (rec) return;
   VID = id; store('booth-video', id); loadFlags();
@@ -422,6 +502,7 @@ async function start() {
   if (!VIDS.length) box.textContent = 'No videos found: a video is a folder with a script.md in it.';
 }
 start();
+fetch('/api/build').then(r => r.json()).then(b => { if (b.running) { buildWasRunning = true; pollBuild(); } }).catch(() => {});
 </script>
 </body>
 </html>
