@@ -16,7 +16,7 @@ The look, sound and script conventions every video follows are in [STYLE.md](STY
 
 - **A video folder** (`01 FTL Time Machine/`) holds only what's unique to that video: `script.md` (the narration, one numbered line per recording, plus fact-check notes and sources) and `scenes.js` (its animations). Recordings go in its `vo/` folder and renders in its `build/` folder; neither is in the repository.
 - **`engine/`** is shared by every video: the drawing helpers and scene engine (`lib.js`), the frame renderer (`render.js`), timing (`timeline.py`), sound (`audio.py`), subtitles (`srt.py`), the recording booth page and the fonts.
-- **`make.sh`** builds a video, and **`record.py`** is the recording booth.
+- **`make.sh`** builds a video, and **`record.py`** is the recording booth (**Recording Booth.command** opens it with a double-click on a Mac).
 
 Every animation is tied to a script line (`K(n, f)` = f of the way through line n), so when the voice changes, every scene and subtitle re-times itself.
 
@@ -49,11 +49,7 @@ A full render takes several minutes per minute of video on a laptop, so `--still
 
 ## Recording the voice-over
 
-```
-python3 record.py
-```
-
-The recording booth opens in your browser. Pick the video you're working on, and it shows one script line at a time, with that line's moment of the animation looping next to it (run `./make.sh` once first, so there's an animation to show).
+On a Mac, double-click **Recording Booth.command** in the repository folder (or run `python3 record.py`). The recording booth opens in your browser; keep the Terminal window it opens running while you record. Pick the video you're working on, and it shows one script line at a time, with that line's moment of the animation looping next to it (run `./make.sh` once first, so there's an animation to show).
 
 - **Space** starts recording; **Space** again saves the take as `vo/023.wav` and moves to the next line. Recording a line again replaces it; the previous take is kept in `vo/.previous/`.
 - **P** plays the take back, **←/→** move between lines, and the strip at the bottom shows what's done. Stop any time and carry on later: it picks up at the first unrecorded line.
