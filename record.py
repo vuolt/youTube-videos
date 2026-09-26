@@ -18,11 +18,15 @@ Standard library only; needs ffprobe (part of ffmpeg) for video durations.
 import argparse, collections, glob, json, os, re, shutil, subprocess, sys, threading, time, webbrowser
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
+from urllib.request import Request, urlopen
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 ENGINE = os.path.join(ROOT, 'engine')
 sys.path.insert(0, ENGINE)
 from video import videos, parse, title  # noqa: E402  (each script.md is the single source of its lines)
+
+# Changes to the booth's Python code make a running booth "out of date" (the page itself is re-read on every load).
+VERSION = str(max(os.path.getmtime(p) for p in (__file__, os.path.join(ENGINE, 'video.py'))))
 
 WORKLET = """
 class Tap extends AudioWorkletProcessor {
@@ -210,6 +214,9 @@ class Booth(BaseHTTPRequestHandler):
             return self.send_json(out)
         if path == '/api/build':
             return self.send_json(BUILDS.status())
+        if path == '/api/hello':
+            st = BUILDS.status()
+            return self.send_json({'booth': True, 'version': VERSION, 'building': bool(st.get('running'))})
         V = self.video()
         if not V:
             return self.send_error(404, 'unknown video')
@@ -244,6 +251,10 @@ class Booth(BaseHTTPRequestHandler):
         self.send_error(404)
 
     def do_POST(self):
+        if urlparse(self.path).path == '/api/quit':          # a newer booth is taking over
+            self.send_json({'ok': True})
+            threading.Thread(target=self.server.shutdown, daemon=True).start()
+            return
         if urlparse(self.path).path == '/api/build':
             V = self.video()
             if not V:
@@ -268,14 +279,55 @@ class Booth(BaseHTTPRequestHandler):
         self.send_json({'ok': True, 'take': takes(V).get(int(num))})
 
 
+def ask(port, path, method='GET'):
+    """Talk to whatever is on the booth's port; None if it isn't a booth."""
+    try:
+        with urlopen(Request(f'http://127.0.0.1:{port}{path}', method=method), timeout=2) as r:
+            return json.loads(r.read())
+    except Exception:
+        return None
+
+
+def open_server(port):
+    """Start the booth, reusing or replacing a booth that's already running on the port."""
+    try:
+        return ThreadingHTTPServer(('127.0.0.1', port), Booth), port
+    except OSError:
+        pass
+    hello = ask(port, '/api/hello')
+    if hello and hello.get('booth'):
+        if hello['version'] == VERSION or hello.get('building'):
+            return None, port                            # up to date (or busy building): just use it
+        print('Replacing an older booth that was still running...')
+        ask(port, '/api/quit', 'POST')
+        for _ in range(40):                              # wait for it to let go of the port
+            time.sleep(0.25)
+            try:
+                return ThreadingHTTPServer(('127.0.0.1', port), Booth), port
+            except OSError:
+                pass
+        raise SystemExit(f'The older booth did not stop. Close its Terminal window and try again.')
+    if ask(port, '/api/videos') is not None:             # a booth from before this check existed
+        print('An older booth is still running in another Terminal window.')
+        print('Close that window, then double-click Recording Booth.command again.')
+        return None, port
+    srv = ThreadingHTTPServer(('127.0.0.1', 0), Booth)   # something else owns the port: use any free one
+    return srv, srv.server_address[1]
+
+
 def main():
     ap = argparse.ArgumentParser(description='Recording booth for the voice-over.')
     ap.add_argument('--port', type=int, default=8765)
     ap.add_argument('--no-browser', action='store_true')
     a = ap.parse_args()
-    srv = ThreadingHTTPServer(('127.0.0.1', a.port), Booth)
-    url = f'http://localhost:{a.port}'
-    print(f'Recording booth: {url}   (Ctrl+C to stop)')
+    srv, port = open_server(a.port)
+    url = f'http://localhost:{port}'
+    if srv is None:
+        print(f'The booth is already running: {url}')
+        if not a.no_browser:
+            webbrowser.open(url)
+        return
+    print(f'Recording booth: {url}   (keep this window open; close it or press Ctrl+C to stop)')
     for V in videos():
         if not refresh_preview(V):
             print(f'{os.path.basename(V)}: no animation preview yet (use Build video in the booth).')
@@ -284,7 +336,9 @@ def main():
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
-        print('\nStopped.')
+        pass
+    srv.server_close()
+    print('\nBooth stopped.')
 
 
 if __name__ == '__main__':
