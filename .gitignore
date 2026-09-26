@@ -1,0 +1,23 @@
+# System files
+.DS_Store
+Thumbs.db
+
+# Local tooling
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+
+# Rendered videos are rebuilt from the code, so they never go in the repo
+*.mp4
+*.mov
+*.m4v
+*.webm
+
+# Audio: voice recordings are private, library music can't be redistributed
+*.wav
+*.m4a
+*.aif
+*.aiff
+*.flac
+*.mp3
