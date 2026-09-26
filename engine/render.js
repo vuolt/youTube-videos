@@ -85,5 +85,6 @@ async function segment(f0, f1, out) {
   await Promise.all(jobs);
   fs.writeFileSync(path.join(B, 'segs.txt'), segs.map(s => `file '${s}'`).join('\n'));
   await new Promise(r => spawn('ffmpeg', ['-v', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', path.join(B, 'segs.txt'), '-c', 'copy', out], { stdio: 'inherit' }).on('close', r));
+  for (const f of [...segs, path.join(B, 'segs.txt')]) fs.rmSync(f, { force: true });   // temporary pieces
   console.log('wrote', out);
 })();
