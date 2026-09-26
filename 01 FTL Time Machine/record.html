@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recording booth</title>
+<style>
+@font-face{font-family:Poppins;font-weight:400;src:url(/fonts/Poppins-Regular.ttf)}
+@font-face{font-family:Poppins;font-weight:500 600;src:url(/fonts/Poppins-Medium.ttf)}
+@font-face{font-family:Poppins;font-weight:700;src:url(/fonts/Poppins-Bold.ttf)}
+:root{
+  --bg:#04050c; --panel:#0a0f24; --panel2:#0e1430; --line:#1c2447;
+  --text:#eef2ff; --dim:#8a93b8; --faint:#3a4266;
+  --cyan:#5ce1ff; --amber:#ffb547; --pink:#ff4f8b; --green:#7dffb2;
+}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font:15px/1.45 Poppins,system-ui,sans-serif}
+button,select{font:inherit;color:inherit}
+header{display:flex;align-items:center;gap:18px;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font-size:15px;font-weight:600;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:38vw}
+.tabs{display:flex;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px}
+.tabs button{background:none;border:0;padding:5px 14px;border-radius:7px;cursor:pointer;color:var(--dim)}
+.tabs button.on{background:var(--panel2);color:var(--text)}
+.spacer{flex:1}
+.meter{width:120px;height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:var(--green);transition:width .05s}
+.meter.hot i{background:var(--pink)}
+select{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:5px 8px;max-width:220px}
+.count{color:var(--dim);white-space:nowrap}
+.count b{color:var(--text)}
+main{display:none;height:calc(100% - 58px)}
+main.on{display:flex}
+/* record view */
+#rec{flex-direction:column}
+.stage{flex:1;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:36px;padding:26px 28px 10px;min-height:0;align-items:center}
+.vidwrap{position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:#000;aspect-ratio:16/9}
+.vidwrap video{width:100%;height:100%;display:block}
+.vidwrap .none{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:30px;color:var(--dim)}
+.note{color:var(--faint);font-size:13px;margin-top:8px}
+.prompter{display:flex;flex-direction:column;justify-content:center;min-height:0}
+.section{color:var(--cyan);font-size:13px;letter-spacing:.12em;text-transform:uppercase;font-weight:600}
+.num{color:var(--dim);font-size:13px;margin-top:4px}
+.prev,.next{color:var(--faint);font-size:19px;line-height:1.45;margin:14px 0}
+.cur{font-size:clamp(26px,2.6vw,40px);font-weight:600;line-height:1.35;margin:6px 0}
+.state{display:flex;align-items:center;gap:14px;margin-top:22px;min-height:44px}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:999px;border:1.5px solid var(--line);color:var(--dim);font-weight:500}
+.pill.rec{border-color:var(--pink);color:var(--pink)}
+.pill.rec::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--pink);animation:blink 1s infinite}
+.pill.done{border-color:var(--green);color:var(--green)}
+.pill.flag{border-color:var(--amber);color:var(--amber)}
+@keyframes blink{50%{opacity:.25}}
+.btn{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 14px;cursor:pointer}
+.btn:hover{border-color:var(--faint)}
+.btn.big{background:var(--pink);border-color:var(--pink);color:#fff;font-weight:600;padding:10px 20px}
+.btn.big.stop{background:var(--panel2);border-color:var(--pink);color:var(--pink)}
+.keys{color:var(--faint);font-size:13px;padding:0 28px 10px}
+.keys kbd{font:inherit;color:var(--dim);border:1px solid var(--line);border-radius:5px;padding:0 6px;margin:0 2px}
+.strip{display:flex;gap:3px;padding:12px 28px 18px;border-top:1px solid var(--line);background:var(--panel)}
+.strip div{flex:1;height:26px;border-radius:4px;background:var(--line);cursor:pointer;position:relative}
+.strip div.done{background:#1f5a4a}
+.strip div.flag{box-shadow:inset 0 0 0 2px var(--amber)}
+.strip div.cur{outline:2px solid var(--cyan);outline-offset:1px}
+.strip div.sec{margin-left:8px}
+/* review view */
+#rev{gap:24px;padding:22px 26px;min-height:0}
+#rev .left{flex:1.2;min-width:0}
+#rev video{width:100%;aspect-ratio:16/9;border-radius:14px;border:1px solid var(--line);background:#000;display:block}
+.banner{margin-top:12px;padding:10px 14px;border-radius:10px;border:1px solid var(--line);color:var(--dim);background:var(--panel)}
+.banner.warn{border-color:var(--amber);color:var(--amber)}
+#rev .right{flex:1;min-width:0;overflow:auto;padding-right:6px}
+.lines p{margin:0;padding:9px 12px;border-radius:10px;color:var(--dim);cursor:pointer;display:flex;gap:10px;
+  background-image:linear-gradient(90deg,rgba(92,225,255,.14) var(--k,0%),transparent var(--k,0%))}
+.lines p:hover{background-color:var(--panel)}
+.lines p.on{color:var(--text);background-color:var(--panel2)}
+.lines p span{color:var(--faint);min-width:26px;font-size:13px;padding-top:2px}
+.lines p.flag span{color:var(--amber)}
+.lines p.flag::after{content:"retake";margin-left:auto;color:var(--amber);font-size:12px;padding-top:3px}
+.lines h3{margin:16px 12px 6px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--cyan)}
+#start{position:fixed;inset:0;background:rgba(4,5,12,.92);display:flex;align-items:center;justify-content:center;z-index:9}
+#start .box{max-width:520px;text-align:center;padding:30px}
+#start h2{font-size:26px;margin:0 0 10px}
+#start p{color:var(--dim)}
+#toast{position:fixed;bottom:78px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);padding:9px 16px;border-radius:10px;opacity:0;transition:opacity .2s;pointer-events:none}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Recording booth</h1>
+  <div class="tabs"><button id="tabRec" class="on">Record</button><button id="tabRev">Review</button></div>
+  <div class="spacer"></div>
+  <span class="count" id="count"></span>
+  <div class="meter" id="meter" title="Microphone level"><i></i></div>
+  <select id="mic" title="Microphone"></select>
+</header>
+
+<main id="rec" class="on">
+  <div class="stage">
+    <div>
+      <div class="vidwrap"><video id="pv" muted playsinline preload="auto"></video>
+        <div class="none" id="pvNone" hidden>No animation preview yet.<br>Run <b>./make.sh</b> once, then reload this page.</div></div>
+      <div class="note">Shows what's on screen during this line. The timing is only a preview: take the line at your own pace, and the video will be re-timed to your voice.</div>
+    </div>
+    <div class="prompter">
+      <div class="section" id="section"></div>
+      <div class="num" id="num"></div>
+      <div class="prev" id="prev"></div>
+      <div class="cur" id="cur"></div>
+      <div class="next" id="next"></div>
+      <div class="state">
+        <button class="btn big" id="recBtn">● Record</button>
+        <span class="pill" id="status"></span>
+        <button class="btn" id="playBtn" hidden>▶ Play take</button>
+      </div>
+    </div>
+  </div>
+  <div class="keys"><kbd>Space</kbd> record / stop and save &nbsp; <kbd>P</kbd> play take &nbsp; <kbd>←</kbd><kbd>→</kbd> previous / next line &nbsp; <kbd>N</kbd> next line without a take</div>
+  <div class="strip" id="strip"></div>
+</main>
+
+<main id="rev">
+  <div class="left">
+    <video id="fv" controls playsinline preload="auto"></video>
+    <div class="banner" id="revBanner" hidden></div>
+    <div class="keys" style="padding:12px 0 0"><kbd>Space</kbd> play / pause &nbsp; <kbd>F</kbd> flag the current line for a retake &nbsp; <kbd>R</kbd> record the current line again &nbsp; click a line to jump</div>
+  </div>
+  <div class="right"><div class="lines" id="lines"></div></div>
+</main>
+
+<div id="start"><div class="box">
+  <h2>Recording booth</h2>
+  <p>Read each line when you're ready. Press <b>Space</b> to start, and <b>Space</b> again when you've finished the line. The take is saved and the next line comes up.</p>
+  <p>Headphones help if you want to hear takes back while recording.</p>
+  <button class="btn big" id="startBtn">Connect microphone</button>
+  <p id="startErr" style="color:var(--pink)"></p>
+</div></div>
+<div id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+let S = null, idx = 0, mode = 'rec';
+let flags = new Set();
+try { flags = new Set(JSON.parse(localStorage.getItem('booth-flags') || '[]')); } catch (e) {}
+const saveFlags = () => { try { localStorage.setItem('booth-flags', JSON.stringify([...flags])); } catch (e) {} };
+
+// ---------------- state ----------------
+async function load(keepIdx) {
+  S = await (await fetch('/api/state')).json();
+  $('title').textContent = S.title + ' · recording booth';
+  if (!keepIdx) { const first = S.lines.findIndex(l => !l.take); idx = first < 0 ? 0 : first; }
+  buildStrip(); buildLines(); showLine(); updateCount(); setupFinal();
+}
+function updateCount() {
+  const done = S.lines.filter(l => l.take).length;
+  $('count').innerHTML = `<b>${done}</b> / ${S.lines.length} lines recorded`;
+}
+function toast(s) { const t = $('toast'); t.textContent = s; t.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 2200); }
+
+// ---------------- record view ----------------
+function buildStrip() {
+  const st = $('strip'); st.innerHTML = '';
+  S.lines.forEach((l, i) => {
+    const d = document.createElement('div');
+    d.title = `${l.n}. ${l.text}`;
+    if (i > 0 && l.section !== S.lines[i - 1].section) d.classList.add('sec');
+    d.onclick = () => { if (!rec) { idx = i; showLine(); } };
+    st.appendChild(d);
+  });
+  paintStrip();
+}
+function paintStrip() {
+  [...$('strip').children].forEach((d, i) => {
+    const l = S.lines[i];
+    d.className = (d.classList.contains('sec') ? 'sec ' : '') + (l.take ? 'done ' : '') + (flags.has(l.n) ? 'flag ' : '') + (i === idx ? 'cur' : '');
+  });
+}
+function showLine() {
+  const l = S.lines[idx], p = S.lines[idx - 1], n = S.lines[idx + 1];
+  $('section').textContent = l.section;
+  $('num').textContent = `Line ${l.n} of ${S.lines.length}`;
+  $('prev').textContent = p ? p.text : '';
+  $('cur').textContent = l.text;
+  $('next').textContent = n ? n.text : '— last line —';
+  setStatus();
+  paintStrip();
+  loopPreview(false);
+}
+function setStatus(extra) {
+  const l = S.lines[idx], st = $('status');
+  st.className = 'pill';
+  if (rec) { st.classList.add('rec'); st.textContent = 'Recording'; }
+  else if (extra) st.textContent = extra;
+  else if (flags.has(l.n)) { st.classList.add('flag'); st.textContent = l.take ? 'Flagged for a retake' : 'Flagged'; }
+  else if (l.take) { st.classList.add('done'); st.textContent = 'Recorded ✓'; }
+  else st.textContent = 'Not recorded yet';
+  $('playBtn').hidden = !l.take || rec;
+  $('recBtn').textContent = rec ? '■ Stop and save' : (l.take ? '● Record again' : '● Record');
+  $('recBtn').classList.toggle('stop', rec);
+}
+
+// preview video: loop this line's section; while recording, play it once and hold
+const pv = $('pv'); let seg = null, holdAtEnd = false;
+function loopPreview(once) {
+  if (mode !== 'rec') { pv.pause(); return; }
+  const l = S.lines[idx];
+  $('pvNone').hidden = !!S.preview;
+  if (!S.preview || !l.preview) { seg = null; pv.pause(); return; }
+  if (!pv.src) pv.src = '/preview.mp4';
+  seg = [Math.max(0, l.preview[0] - 0.4), l.preview[1] + 0.6];
+  holdAtEnd = once;
+  pv.currentTime = seg[0];
+  pv.play().catch(() => {});
+}
+(function tick() {
+  if (seg && !pv.paused && pv.currentTime >= seg[1]) {
+    if (holdAtEnd) pv.pause(); else pv.currentTime = seg[0];
+  }
+  requestAnimationFrame(tick);
+})();
+
+// ---------------- audio ----------------
+let actx = null, stream = null, node = null, rec = false, chunks = [], recStartAt = 0, peak = 0;
+async function connectMic(deviceId) {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = await navigator.mediaDevices.getUserMedia({ audio: {
+    deviceId: deviceId ? { exact: deviceId } : undefined, channelCount: 1,
+    echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+  if (!actx) {
+    actx = new AudioContext();
+    await actx.audioWorklet.addModule('/worklet.js');
+    node = new AudioWorkletNode(actx, 'tap');
+    const mute = actx.createGain(); mute.gain.value = 0;
+    node.connect(mute).connect(actx.destination);
+    node.port.onmessage = e => {
+      const d = e.data; let m = 0;
+      for (let i = 0; i < d.length; i++) { const v = Math.abs(d[i]); if (v > m) m = v; }
+      peak = Math.max(m, peak * 0.92);
+      if (rec) chunks.push(d);
+    };
+  }
+  if (connectMic.src) connectMic.src.disconnect();
+  connectMic.src = actx.createMediaStreamSource(stream);
+  connectMic.src.connect(node);
+  await actx.resume();
+  await listMics(stream.getAudioTracks()[0].getSettings().deviceId);
+}
+async function listMics(current) {
+  const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput');
+  const sel = $('mic'); sel.innerHTML = '';
+  devs.forEach(d => { const o = document.createElement('option'); o.value = d.deviceId; o.textContent = d.label || 'Microphone'; if (d.deviceId === current) o.selected = true; sel.appendChild(o); });
+}
+$('mic').onchange = async e => { await connectMic(e.target.value); e.target.blur(); toast('Microphone switched'); };
+(function meter() {
+  const pct = Math.min(1, Math.sqrt(peak)) * 100;
+  $('meter').firstElementChild.style.width = pct + '%';
+  $('meter').classList.toggle('hot', peak > 0.97);
+  requestAnimationFrame(meter);
+})();
+
+const TRIM_START = 0.15;   // drop the key click at the start
+const TRIM_END = 0.05;     // ...and at the end
+function startRec() {
+  if (!actx || rec) return;
+  chunks = []; rec = true; recStartAt = performance.now();
+  setStatus(); loopPreview(true);
+}
+async function stopRec() {
+  if (!rec) return;
+  rec = false;
+  const l = S.lines[idx], sr = actx.sampleRate;
+  let total = 0; chunks.forEach(c => total += c.length);
+  const all = new Float32Array(total); let o = 0; chunks.forEach(c => { all.set(c, o); o += c.length; });
+  const a = Math.floor(TRIM_START * sr), b = Math.max(a, total - Math.floor(TRIM_END * sr));
+  const pcm = all.subarray(a, b);
+  if (pcm.length < sr * 0.4) { setStatus('Too short, not saved'); loopPreview(false); return; }
+  let clipped = 0; for (let i = 0; i < pcm.length; i++) if (Math.abs(pcm[i]) > 0.99) clipped++;
+  setStatus('Saving…');
+  const res = await fetch(`/api/take/${String(l.n).padStart(3, '0')}`, { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body: wav(pcm, sr) });
+  if (!res.ok) { setStatus('Save failed'); return; }
+  l.take = (await res.json()).take;
+  flags.delete(l.n); saveFlags();
+  updateCount();
+  if (clipped > sr * 0.002) toast('That take was too loud and clipped. Move back a little and record it again.');
+  else toast(`Line ${l.n} saved (${(pcm.length / sr).toFixed(1)} s)`);
+  if (idx < S.lines.length - 1) idx++;
+  showLine();
+  if (S.lines.every(x => x.take)) toast('All lines recorded! Stop the booth (Ctrl+C) and run ./make.sh');
+}
+function wav(pcm, sr) {
+  const buf = new ArrayBuffer(44 + pcm.length * 2), v = new DataView(buf);
+  const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  str(0, 'RIFF'); v.setUint32(4, 36 + pcm.length * 2, true); str(8, 'WAVE'); str(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true);
+  v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, 'data'); v.setUint32(40, pcm.length * 2, true);
+  for (let i = 0; i < pcm.length; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, pcm[i])) * 32767, true);
+  return new Blob([buf], { type: 'audio/wav' });
+}
+let player = null;
+function playTake() {
+  const l = S.lines[idx]; if (!l.take || rec) return;
+  if (player) player.pause();
+  player = new Audio(`/vo/${String(l.n).padStart(3, '0')}?v=${l.take.mtime}`);
+  player.play();
+}
+$('recBtn').onclick = e => { e.target.blur(); rec ? stopRec() : startRec(); };
+$('playBtn').onclick = e => { e.target.blur(); playTake(); };
+
+// ---------------- review view ----------------
+const fv = $('fv');
+function buildLines() {
+  const box = $('lines'); box.innerHTML = ''; let sec = null;
+  S.lines.forEach((l, i) => {
+    if (l.section !== sec) { sec = l.section; const h = document.createElement('h3'); h.textContent = sec; box.appendChild(h); }
+    const p = document.createElement('p'); p.id = 'L' + l.n;
+    p.innerHTML = `<span>${l.n}</span><em style="font-style:normal"></em>`; p.querySelector('em').textContent = l.text;
+    if (flags.has(l.n)) p.classList.add('flag');
+    p.onclick = () => { if (l.final) { fv.currentTime = Math.max(0, l.final[0] - 0.3); fv.play(); } };
+    box.appendChild(p);
+  });
+}
+function setupFinal() {
+  const b = $('revBanner'); b.hidden = false; b.className = 'banner';
+  if (!S.final) { fv.removeAttribute('src'); b.innerHTML = 'No full build yet. Record some lines, stop the booth, run <b>./make.sh</b>, then start the booth again.'; return; }
+  if (!fv.src.endsWith('/final.mp4?v=' + S.finalMtime)) fv.src = '/final.mp4?v=' + S.finalMtime;
+  const newer = S.lines.filter(l => l.take && l.take.mtime > S.finalMtime).length;
+  if (S.finalMode === 'estimate') { b.classList.add('warn'); b.innerHTML = 'This build has no voice yet (timing is estimated). Record lines, then run <b>./make.sh</b>.'; }
+  else if (newer) { b.classList.add('warn'); b.innerHTML = `${newer} line${newer > 1 ? 's' : ''} recorded since this build. Run <b>./make.sh</b> to hear them in the video.`; }
+  else b.textContent = `Playing the last build: ${S.final}`;
+}
+function curFinalLine() {
+  const t = fv.currentTime;
+  return S.lines.find(l => l.final && t >= l.final[0] - 0.2 && t < l.final[1] + 0.35);
+}
+let lastOn = null;
+(function karaoke() {
+  if (mode === 'rev' && S) {
+    const l = curFinalLine();
+    if (lastOn && (!l || lastOn.n !== l.n)) { const e = $('L' + lastOn.n); e.classList.remove('on'); e.style.setProperty('--k', '0%'); }
+    if (l) {
+      const e = $('L' + l.n), k = Math.min(1, Math.max(0, (fv.currentTime - l.final[0]) / (l.final[1] - l.final[0])));
+      e.classList.add('on'); e.style.setProperty('--k', (k * 100).toFixed(1) + '%');
+      if (!lastOn || lastOn.n !== l.n) e.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+    lastOn = l || null;
+  }
+  requestAnimationFrame(karaoke);
+})();
+function toggleFlag(l) {
+  if (!l) return;
+  flags.has(l.n) ? flags.delete(l.n) : flags.add(l.n); saveFlags();
+  $('L' + l.n).classList.toggle('flag', flags.has(l.n)); paintStrip();
+  toast(flags.has(l.n) ? `Line ${l.n} flagged for a retake` : `Line ${l.n} unflagged`);
+}
+
+// ---------------- tabs & keys ----------------
+function setMode(m) {
+  mode = m;
+  $('tabRec').classList.toggle('on', m === 'rec'); $('tabRev').classList.toggle('on', m === 'rev');
+  $('rec').classList.toggle('on', m === 'rec'); $('rev').classList.toggle('on', m === 'rev');
+  if (m === 'rev') { pv.pause(); load(true); } else { fv.pause(); showLine(); }
+}
+$('tabRec').onclick = e => { e.target.blur(); if (!rec) setMode('rec'); };
+$('tabRev').onclick = e => { e.target.blur(); if (!rec) setMode('rev'); };
+document.addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey || e.altKey || !S || !$('start').hidden) return;
+  const k = e.key;
+  if (mode === 'rec') {
+    if (k === ' ') { e.preventDefault(); if (!e.repeat) rec ? stopRec() : startRec(); }
+    else if (rec) return;
+    else if (k === 'ArrowRight' || k === 'n' || k === 'N') { e.preventDefault(); if (idx < S.lines.length - 1) { idx++; showLine(); } }
+    else if (k === 'ArrowLeft') { e.preventDefault(); if (idx > 0) { idx--; showLine(); } }
+    else if (k === 'p' || k === 'P') playTake();
+  } else {
+    if (k === ' ') { e.preventDefault(); fv.paused ? fv.play() : fv.pause(); }
+    else if (k === 'f' || k === 'F') toggleFlag(curFinalLine());
+    else if (k === 'r' || k === 'R') { const l = curFinalLine(); if (l) { idx = S.lines.indexOf(l); setMode('rec'); } }
+  }
+});
+$('startBtn').onclick = async () => {
+  try { await connectMic(); $('start').hidden = true; showLine(); }
+  catch (err) { $('startErr').textContent = 'Could not use the microphone: ' + err.message + '. Allow microphone access for this page and try again.'; }
+};
+load(false);
+</script>
+</body>
+</html>

@@ -2,7 +2,9 @@
 """Build build/timeline.json from script.md.
 
 Timing source, in order of preference:
-  1. vo/001.wav, vo/002.wav ... (one file per line; any of wav/m4a/mp3/aif)
+  1. vo/001.wav, vo/002.wav ... (one file per line; any of wav/m4a/mp3/aif),
+     e.g. recorded with record.py. Lines not recorded yet use estimated timing,
+     so a half-recorded video still builds.
   2. vo/take.* (one take, lines separated by pauses >= 1.0 s)
   3. estimate from word count (animatic mode)
 
@@ -80,17 +82,30 @@ def split_take(path, n):
     return segs
 
 
+def estimate(L):
+    return len(L['text'].split()) / WPS + 0.25
+
+
 def main():
     lines = parse()
+    for old in glob.glob(os.path.join(B, 'vo', '*.wav')):
+        os.remove(old)                      # stale clips from an earlier build
     mode = 'estimate'
     durs = {}
-    if find('001'):
+    files = {L['n']: find(f"{L['n']:03d}") for L in lines}
+    if any(files.values()):
         mode = 'vo-files'
+        missing = []
         for L in lines:
-            p = find(f"{L['n']:03d}")
-            if not p:
-                sys.exit(f"missing vo/{L['n']:03d}.*")
-            durs[L['n']] = trim_to(p, os.path.join(B, 'vo', f"{L['n']:03d}.wav"))
+            p = files[L['n']]
+            if p:
+                durs[L['n']] = trim_to(p, os.path.join(B, 'vo', f"{L['n']:03d}.wav"))
+            else:
+                durs[L['n']] = estimate(L)
+                missing.append(L['n'])
+        if missing:
+            which = ', '.join(map(str, missing)) if len(missing) <= 12 else ', '.join(map(str, missing[:8])) + ', …'
+            print(f'{len(missing)} of {len(lines)} lines not recorded yet ({which}); using estimated timing for those')
     elif find('take'):
         mode = 'vo-take'
         p = find('take')
@@ -98,7 +113,7 @@ def main():
             durs[L['n']] = trim_to(p, os.path.join(B, 'vo', f"{L['n']:03d}.wav"), a, b)
     else:
         for L in lines:
-            durs[L['n']] = len(L['text'].split()) / WPS + 0.25
+            durs[L['n']] = estimate(L)
 
     t, prev = LEAD, None
     for L in lines:

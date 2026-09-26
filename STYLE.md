@@ -75,7 +75,7 @@ Only one or two accent colours should be on screen at a time. Glow (`glow:` 12â€
 
 ## 5. Sound
 
-- **Voice:** generated with Kokoro via `tts.py` (free, open, Apache 2.0). Use the same voice and speed on every video so the channel has one narrator. Current voice: `af_heart`, speed 1.0 (update this line if it changes).
+- **Voice:** one human narrator for every video, recorded line by line in the recording booth (`record.py`). Same mic, same room and the same distance from the mic every time, so episodes sound alike. Natural pace; the video is re-timed to the voice, never the other way round.
 - **Sound effects:** synthesized in `audio.py`, triggered by cues listed next to each scene: `whoosh`, `pop`, `blip`, `tick`, `ping`, `ding`, `chime`, `zap`, `glitch`, `riser`, `swell`, `boom`, `buzz`, `steps`. At most one effect per visual beat, and never under a key line.
 - **Music:** a quiet ambient pad (D minor, 8 s chords) synthesized by `audio.py`, or a licensed library track in `music/track.mp3` (never committed). It's automatically lowered under the voice.
 - **Loudness:** the final mix is normalised to âˆ’15 LUFS.
@@ -87,8 +87,8 @@ Sentence-level, one cue per script line, written by `srt.py`. They're a switchab
 ## 7. Starting a new video
 
 1. Copy the previous video's folder to `NN Short Name` (for example `02 Why The Sky Is Dark`).
-2. Keep the engine files as they are: `lib.js`, `render.js`, `timeline.py`, `audio.py`, `srt.py`, `tts.py`, `make.sh`, `index.html`, `fonts/`, `package.json`, `requirements.txt`, `.gitignore`.
+2. Keep the engine files as they are: `lib.js`, `render.js`, `timeline.py`, `audio.py`, `srt.py`, `record.py`, `record.html`, `make.sh`, `index.html`, `fonts/`, `package.json`, `requirements.txt`, `.gitignore`.
 3. Replace `script.md` with the new script, following section 2.
 4. Replace the scenes in `scenes.js` (keep the engine block at the bottom). New drawing helpers that could serve later videos go in `lib.js`.
 5. Update the folder's `README.md` and add the video to the table in the top-level README.
-6. Generate the voice, run `./make.sh`, and run `node render.js --check` before the final render.
+6. Run `./make.sh` once for the animatic, record the voice with `python3 record.py`, run `./make.sh` again, and run `node render.js --check` before the final render.

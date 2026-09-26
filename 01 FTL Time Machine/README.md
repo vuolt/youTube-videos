@@ -11,13 +11,25 @@ The whole video is code. The script lines drive the timing, so once you record, 
 - `audio.py`: synthesized sound effects, an ambient music bed, your voice-over, and ducking.
 - `srt.py`: writes `build/subtitles.srt` for YouTube.
 - `make.sh`: runs all of the above.
+- `record.py` + `record.html`: the recording booth for the voice-over (see below).
 
 ## Recording the voice-over
-Put your files in `vo/` using either option:
-1. **One file per line:** `vo/001.wav` … `vo/069.wav` (wav, m4a, mp3, aif and flac all work).
-2. **One take:** `vo/take.wav`, with a clear 2-second pause between lines and no long pauses inside a line.
+The video is timed to the voice, not the other way round: record each line at your own pace, and `./make.sh` re-times every scene and subtitle to your recordings.
 
-Silence at the start and end of each clip is trimmed automatically. Subtitles go into the video as a switchable track (View → Subtitles in QuickTime); `SUBS=1 ./make.sh` burns them into the picture instead. Upload `build/subtitles.srt` to YouTube as captions.
+**The recording booth** (recommended). From this folder, after running `./make.sh` once so it has the animation to show:
+```
+python3 record.py
+```
+It opens in your browser and shows one line at a time, with that line's moment of the animation looping next to it.
+- **Space** starts recording; **Space** again saves the take as `vo/023.wav` and moves to the next line. Record a line again to replace it (the previous take is kept in `vo/.previous/`).
+- **P** plays the take back, **←/→** move between lines, and the strip at the bottom shows what's done. You can stop any time and carry on later.
+- The **Review** tab plays the last build with the script highlighted as it's spoken. **F** flags a line for a retake, **R** jumps back to record it.
+
+Stop the booth with Ctrl+C and run `./make.sh`. It builds fine with lines still missing: those keep their estimated timing.
+
+**Or one take:** record everything in one go as `vo/take.wav` (or `.m4a`), with a clear 2-second pause between lines and no long pauses inside a line. It's split into lines automatically.
+
+Silence at the start and end of each clip is trimmed automatically. For consistent sound, record in one sitting, in a small soft room, at the same distance from the mic. Subtitles go into the video as a switchable track (View → Subtitles in QuickTime); `SUBS=1 ./make.sh` burns them into the picture instead. Upload `build/subtitles.srt` to YouTube as captions.
 
 ## Music
 By default the build synthesizes an ambient bed. To use a YouTube Audio Library track instead, save it as `music/track.mp3`. It's looped to the video's length and lowered automatically under your voice.
