@@ -83,6 +83,11 @@ main.on{display:flex}
 #start{position:fixed;inset:0;background:rgba(4,5,12,.92);display:flex;align-items:center;justify-content:center;z-index:9}
 #start .box{width:min(620px,92vw);text-align:center;padding:30px}
 #start .small{font-size:13px;color:var(--faint)}
+#startErr{text-align:left;margin-top:14px;padding:14px 16px;border:1px solid var(--pink);border-radius:12px;background:rgba(255,79,139,.07)}
+#startErr b.t{display:block;color:var(--pink);margin-bottom:6px}
+#startErr ol{margin:6px 0 8px;padding-left:20px;color:var(--text)}
+#startErr li{margin:3px 0}
+#startErr p{margin:6px 0 0;font-size:13px;color:var(--dim)}
 #vids{display:flex;flex-direction:column;gap:10px;margin:18px 0}
 .vcard{display:block;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;cursor:pointer}
 .vcard:hover,.vcard.last{border-color:var(--cyan)}
@@ -157,7 +162,7 @@ main.on{display:flex}
   <p>Which video are you working on?</p>
   <div id="vids"></div>
   <p class="small">Read each line when you're ready: <b>Space</b> starts recording, <b>Space</b> again saves the take and brings up the next line. The browser will ask to use your microphone.</p>
-  <p id="startErr" style="color:var(--pink)"></p>
+  <div id="startErr" hidden></div>
 </div></div>
 <div id="toast"></div>
 <div id="bp" hidden>
@@ -286,7 +291,11 @@ async function listMics(current) {
   const sel = $('mic'); sel.innerHTML = '';
   devs.forEach(d => { const o = document.createElement('option'); o.value = d.deviceId; o.textContent = d.label || 'Microphone'; if (d.deviceId === current) o.selected = true; sel.appendChild(o); });
 }
-$('mic').onchange = async e => { await connectMic(e.target.value); e.target.blur(); toast('Microphone switched'); };
+$('mic').onchange = async e => {
+  e.target.blur();
+  try { await connectMic(e.target.value); toast('Microphone switched'); }
+  catch (err) { toast('Could not switch to that microphone: ' + err.message); }
+};
 (function meter() {
   const pct = Math.min(1, Math.sqrt(peak)) * 100;
   $('meter').firstElementChild.style.width = pct + '%';
@@ -502,6 +511,40 @@ async function pickVideo(id) {
   await load(false);
 }
 $('vid').onchange = async e => { e.target.blur(); await pickVideo(e.target.value); if (mode === 'rev') setMode('rev'); };
+// Step-by-step help when the microphone can't be used (usually a declined permission)
+function showMicHelp(err) {
+  const ua = navigator.userAgent, box = $('startErr');
+  const safari = /Safari/.test(ua) && !/Chrome|Chromium|Edg/.test(ua), firefox = /Firefox/.test(ua);
+  const name = err && err.name;
+  let title, steps, more;
+  if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+    title = 'No microphone found.';
+    steps = ['Plug in or connect your microphone (or check that your Mac\'s built-in one is on).', 'Click the video above again.'];
+  } else if (name === 'NotReadableError') {
+    title = 'The microphone is busy.';
+    steps = ['Close other apps that might be using it (video calls, voice memos, other browser tabs).', 'Click the video above again.'];
+  } else {
+    title = 'The browser isn\'t allowed to use the microphone.';
+    steps = safari ? [
+      'In the menu bar, choose <b>Safari → Settings for localhost…</b>',
+      'Set <b>Microphone</b> to <b>Allow</b>.',
+      'Reload this page (⌘R) and click the video again.'
+    ] : firefox ? [
+      'Click the microphone or permissions icon at the left of the address bar.',
+      'Remove the <b>Blocked</b> microphone permission.',
+      'Reload this page (⌘R), click the video again and choose <b>Allow</b>.'
+    ] : [
+      'Click the icon at the left of the address bar (a slider or padlock).',
+      'Switch <b>Microphone</b> on.',
+      'Reload this page (⌘R) and click the video again.'
+    ];
+    more = 'Still blocked? Open <b>System Settings → Privacy & Security → Microphone</b> on your Mac and tick your browser there, then restart the browser.';
+  }
+  box.innerHTML = `<b class="t">${title}</b><ol>${steps.map(x => `<li>${x}</li>`).join('')}</ol>` +
+    (more ? `<p>${more}</p>` : '') + `<p>Details: ${(err && (err.name + ': ' + err.message)) || 'unknown error'}</p>`;
+  box.hidden = false;
+}
+
 async function start() {
   VIDS = await (await fetch('/api/videos')).json();
   const sel = $('vid'); sel.innerHTML = '';
@@ -517,7 +560,7 @@ async function start() {
     b.querySelector('i').style.width = pct + '%';
     b.onclick = async () => {
       try { await connectMic(); } catch (err) {
-        $('startErr').textContent = 'Could not use the microphone: ' + err.message + '. Allow microphone access for this page and try again.'; return;
+        showMicHelp(err); return;
       }
       await pickVideo(v.id); $('start').hidden = true;
     };
