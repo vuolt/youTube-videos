@@ -12,6 +12,8 @@ The voice-over is mine, recorded separately, so it isn't in here. Without it, th
 
 Each folder is self-contained, with its own README and setup steps.
 
+The look, sound and script conventions every video follows are in [STYLE.md](STYLE.md).
+
 ## Try it
 
 You need Node.js, ffmpeg and Python 3. On a Mac with Homebrew:
