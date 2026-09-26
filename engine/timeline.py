@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Build build/timeline.json from script.md.
+"""Build <video>/build/timeline.json from the video's script.md.
+
+    python3 engine/timeline.py "01 FTL Time Machine"   (make.sh runs this)
 
 Timing source, in order of preference:
   1. vo/001.wav, vo/002.wav ... (one file per line; any of wav/m4a/mp3/aif),
@@ -12,10 +14,9 @@ Each line gets: n, text, start, end (seconds). With real VO, the trimmed
 clips are written to build/vo/NNN.wav for audio.py to place.
 """
 import json, os, re, subprocess, glob, sys
+from video import resolve, parse
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-B = os.path.join(HERE, 'build')
-os.makedirs(os.path.join(B, 'vo'), exist_ok=True)
+V = B = None        # the video folder and its build folder, set by main()
 
 LEAD = 1.0          # silence before line 1
 GAP = 0.45          # pause between lines
@@ -23,18 +24,6 @@ SECTION_GAP = 0.9   # extra pause at a section change
 TAIL = 4.0          # after last line
 WPS = 2.55          # words per second for estimates (~153 wpm)
 EXT = ('wav', 'm4a', 'mp3', 'aif', 'aiff', 'flac')
-
-
-def parse():
-    src = open(os.path.join(HERE, 'script.md'), encoding='utf-8').read().split('\n---')[0]
-    lines, section = [], ''
-    for row in src.splitlines():
-        if row.startswith('## '):
-            section = row[3:].strip()
-        m = re.match(r'^(\d+)\. (.+)$', row)
-        if m:
-            lines.append({'n': int(m.group(1)), 'text': m.group(2).strip(), 'section': section})
-    return lines
 
 
 def dur(path):
@@ -57,7 +46,7 @@ def trim_to(src, dst, start=None, end=None):
 
 def find(stem):
     for e in EXT:
-        p = os.path.join(HERE, 'vo', f'{stem}.{e}')
+        p = os.path.join(V, 'vo', f'{stem}.{e}')
         if os.path.exists(p):
             return p
     return None
@@ -86,8 +75,11 @@ def estimate(L):
     return len(L['text'].split()) / WPS + 0.25
 
 
-def main():
-    lines = parse()
+def main(video):
+    global V, B
+    V, B = video, os.path.join(video, 'build')
+    os.makedirs(os.path.join(B, 'vo'), exist_ok=True)
+    lines = parse(V)
     for old in glob.glob(os.path.join(B, 'vo', '*.wav')):
         os.remove(old)                      # stale clips from an earlier build
     mode = 'estimate'
@@ -130,4 +122,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    main(resolve(sys.argv[1] if len(sys.argv) > 1 else ''))

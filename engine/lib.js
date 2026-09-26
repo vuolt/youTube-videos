@@ -268,3 +268,43 @@ function subtitle(ctx, s, a) {
   window.BOXES = keep;
   ctx.restore();
 }
+
+// =====================================================================
+// Scene engine: scenes.js calls scene(); K(n, f) is the time at fraction f
+// through script line n, so every animation follows the voice.
+// =====================================================================
+let TL = null, LINES = {};
+const K = (n, f = 0) => { const L = LINES[n]; return L.start + f * (L.end - L.start); };
+const E = n => LINES[n].end;
+const SCENES = [];
+const scene = (id, from, to, draw, cues) => SCENES.push({ id, from, to, draw, cues: cues || (() => []) });
+const dimAll = (ctx, a) => { if (a > 0) { ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H); ctx.restore(); } };
+const quiet = fn => { const k = window.BOXES; window.BOXES = null; fn(); window.BOXES = k; };  // decorative text: skip overlap check
+
+let OPTS = { subs: true };
+const XF = 0.7; // crossfade seconds
+function setup(tl, opts) {
+  TL = tl; LINES = {}; tl.lines.forEach(l => LINES[l.n] = l); Object.assign(OPTS, opts || {});
+  SCENES.forEach((s, i) => { s.t0 = i === 0 ? 0 : K(s.from) - 0.55; });
+  SCENES.forEach((s, i) => { s.t1 = i === SCENES.length - 1 ? tl.total : SCENES[i + 1].t0 + XF; });
+}
+let off = null;
+function renderFrame(t) {
+  const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.clearRect(0, 0, W, H);
+  const act = SCENES.filter(s => t >= s.t0 && t < s.t1);
+  if (!act.length) return;
+  act[0].draw(ctx, t);
+  if (act.length > 1) {
+    if (!off) { off = document.createElement('canvas'); off.width = W; off.height = H; }
+    const o = off.getContext('2d'); o.setTransform(1, 0, 0, 1, 0, 0); o.globalAlpha = 1; o.clearRect(0, 0, W, H);
+    act[1].draw(o, t);
+    ctx.globalAlpha = ease((t - act[1].t0) / XF); ctx.drawImage(off, 0, 0); ctx.globalAlpha = 1;
+  }
+  if (OPTS.subs) {
+    const L = TL.lines.find(l => t >= l.start - 0.1 && t < l.end + 0.35);
+    if (L) subtitle(ctx, L.text, clamp((t - L.start + 0.1) / 0.15) * (1 - clamp((t - L.end - 0.2) / 0.15)));
+  }
+}
+function getCues() { const out = []; SCENES.forEach(s => s.cues().forEach(c => out.push({ ...c, scene: s.id }))); return out.sort((a, b) => a.t - b.t); }
+function getScenes() { return SCENES.map(s => ({ id: s.id, from: s.from, to: s.to, t0: s.t0, t1: s.t1 })); }

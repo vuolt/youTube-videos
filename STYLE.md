@@ -2,7 +2,7 @@
 
 Every video on the channel should feel like part of the same series. This file records the decisions behind video 1 so later videos keep the same look, sound and voice. If a new video needs something new (a new colour role, a new kind of diagram), add it here, so the next one inherits it.
 
-Video 1 (`01 FTL Time Machine`) is the reference implementation. When this file and the code disagree, the code in `lib.js` is the source of truth for exact values.
+Video 1 (`01 FTL Time Machine`) is the reference implementation, and all videos share the code in `engine/`. When this file and the code disagree, `engine/lib.js` is the source of truth for exact values.
 
 ## 1. What every video is
 
@@ -32,7 +32,7 @@ Video 1 (`01 FTL Time Machine`) is the reference implementation. When this file 
 
 **Frame:** 1920×1080, 30 fps. Everything is drawn on a canvas by `render(t)`.
 
-**Background:** deep navy radial gradient (`#0c1330` in the centre fading to `#04050c`), a slow drift of twinkling stars, and a soft vignette. Use `background()` and `vignette()` from `lib.js`. Topics that aren't about space keep the same navy base; the stars can be dimmed (`starAlpha`) or swapped for a subtle grid.
+**Background:** deep navy radial gradient (`#0c1330` in the centre fading to `#04050c`), a slow drift of twinkling stars, and a soft vignette. Use `background()` and `vignette()` from `engine/lib.js`. Topics that aren't about space keep the same navy base; the stars can be dimmed (`starAlpha`) or swapped for a subtle grid.
 
 **Colour roles.** The meaning stays the same in every video:
 
@@ -61,9 +61,9 @@ Only one or two accent colours should be on screen at a time. Glow (`glow:` 12�
 - One idea on screen at a time; a caption is replaced, not stacked.
 - Top captions sit at about y = 80–150; big statements sit centred.
 - Keep the bottom ~200 px free of important text, because the subtitle bar lives there.
-- Every video must pass `node render.js --check`, which flags overlapping text, text running off-screen, and anything colliding with the subtitles.
+- Every video must pass `node engine/render.js --video <folder> --check`, which flags overlapping text, text running off-screen, and anything colliding with the subtitles.
 
-**Illustration style:** flat, geometric and clean. Thin glowing lines, dots, rings, rounded cards (24 px radius, `rgba(14,20,46,0.88)` fill, thin outline). People are simple stick figures (`person()`); the ship is our own arrowhead design (`ship()`); clocks are `clockPanel()`. Reuse and extend these helpers instead of inventing a new drawing style per video.
+**Illustration style:** flat, geometric and clean. Thin glowing lines, dots, rings, rounded cards (24 px radius, `rgba(14,20,46,0.88)` fill, thin outline). People are simple stick figures (`person()`); the ship is our own arrowhead design (`ship()`); clocks are `clockPanel()`. Reuse and extend these helpers (in `engine/lib.js`) instead of inventing a new drawing style per video.
 
 ## 4. Motion
 
@@ -86,9 +86,9 @@ Sentence-level, one cue per script line, written by `srt.py`. They're a switchab
 
 ## 7. Starting a new video
 
-1. Copy the previous video's folder to `NN Short Name` (for example `02 Why The Sky Is Dark`).
-2. Keep the engine files as they are: `lib.js`, `render.js`, `timeline.py`, `audio.py`, `srt.py`, `record.py`, `record.html`, `make.sh`, `index.html`, `fonts/`, `package.json`, `requirements.txt`, `.gitignore`.
-3. Replace `script.md` with the new script, following section 2.
-4. Replace the scenes in `scenes.js` (keep the engine block at the bottom). New drawing helpers that could serve later videos go in `lib.js`.
-5. Update the folder's `README.md` and add the video to the table in the top-level README.
-6. Run `./make.sh` once for the animatic, record the voice with `python3 record.py`, run `./make.sh` again, and run `node render.js --check` before the final render.
+1. Create a folder `NN Short Name` at the top of the repository (for example `02 Why The Sky Is Dark`). It only needs `script.md`, `scenes.js` and a short `README.md`; everything else comes from `engine/`.
+2. Write `script.md` following section 2.
+3. Write `scenes.js`: scenes only, using `scene()`, `K()` and the helpers in `engine/lib.js` (see video 1's `scenes.js` for the pattern). A new drawing helper that could serve later videos goes in `engine/lib.js`, not the video folder.
+4. Add the video to the table in the top-level README.
+5. Run `./make.sh NN` for the animatic, record the voice with `python3 record.py`, run `./make.sh NN` again, and check the text with `node engine/render.js --video "NN Short Name" --check` before the final render.
+6. If a change to `engine/` could alter an earlier video, re-render a few stills of that video to check it still looks the same.

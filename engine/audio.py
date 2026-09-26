@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
-"""Sound for the video: synthesized SFX from build/cues.json, an ambient music
+"""Sound for a video: synthesized SFX from build/cues.json, an ambient music
 bed, and the voice-over clips placed at their line starts (if recorded).
 
-Writes build/sfx.wav, build/music.wav, build/vo.wav and build/mix.wav (48 kHz stereo).
-To use a library track instead of the synth bed, drop it in as music/track.(mp3|wav);
+    python3 engine/audio.py "01 FTL Time Machine"   (make.sh runs this)
+
+Writes <video>/build/sfx.wav, build/music.wav, build/vo.wav and build/mix.wav (48 kHz stereo).
+To use a library track instead of the synth bed, drop it in as <video>/music/track.(mp3|wav);
 it is looped/trimmed to length and ducked under the voice.
 """
-import json, os, glob, subprocess
+import json, os, glob, subprocess, sys
 import numpy as np
 from scipy.signal import butter, sosfilt, fftconvolve
 import wave
 
+from video import resolve
+
 SR = 48000
-HERE = os.path.dirname(os.path.abspath(__file__))
-B = os.path.join(HERE, 'build')
+V = resolve(sys.argv[1] if len(sys.argv) > 1 else '') if __name__ == '__main__' else None
+B = os.path.join(V, 'build') if V else None
 rng = np.random.default_rng(5)
 
 
@@ -184,7 +188,7 @@ def main():
         if tl['mode'] != 'estimate' and os.path.exists(p):
             x = read(p); i = int(L['start'] * SR); m = min(len(x), n - i); vo[i:i + m] += x[:m]; has_vo = True
 
-    lib = sorted(glob.glob(os.path.join(HERE, 'music', 'track.*')))
+    lib = sorted(glob.glob(os.path.join(V, 'music', 'track.*')))
     if lib:
         m = read(lib[0]); reps = int(np.ceil(n / len(m))); music = np.tile(m, reps)[:n] * 0.5
     else:

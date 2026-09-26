@@ -1,6 +1,6 @@
 {
-  "name": "ftl-time-machine",
-  "description": "Renders the video \"Every Sci-Fi Shortcut Is Secretly a Time Machine\" frame by frame",
+  "name": "hidden-variable-videos",
+  "description": "Renders the Hidden Variable explainer videos frame by frame",
   "private": true,
   "license": "MIT",
   "scripts": {

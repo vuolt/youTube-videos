@@ -1,9 +1,0 @@
-# Render output (rebuilt by make.sh)
-build/
-subtitles.srt
-
-# Voice recordings (private, and large)
-vo/
-
-# Library music can't be redistributed
-music/

@@ -1,17 +1,19 @@
-// Usage: node render.js [--from s] [--to s] [--fps 30] [--workers 2] [--subs 0|1] [--out file.mp4]
-//        node render.js --stills 12.5,40,80 --outdir build/stills
-//        node render.js --cues   (writes build/cues.json + build/scenes.json)
+// Renders a video's frames. --video is the video folder (default: the current folder).
+// Usage: node engine/render.js --video DIR [--from s] [--to s] [--fps 30] [--workers 2] [--subs 0|1] [--out file.mp4]
+//        node engine/render.js --video DIR --stills 12.5,40,80 [--outdir DIR/build/stills]
+//        node engine/render.js --video DIR --cues    (writes build/cues.json + build/scenes.json)
+//        node engine/render.js --video DIR --check   (lists overlapping or off-screen text)
 const { chromium } = require(process.env.PW || 'playwright');
-const fs = require('fs'), path = require('path'), { spawn } = require('child_process');
+const fs = require('fs'), path = require('path'), { spawn } = require('child_process'), { pathToFileURL } = require('url');
 const args = Object.fromEntries(process.argv.slice(2).reduce((a, x, i, arr) => { if (x.startsWith('--')) a.push([x.slice(2), arr[i + 1] && !arr[i + 1].startsWith('--') ? arr[i + 1] : '1']); return a; }, []));
-const HERE = __dirname, B = path.join(HERE, 'build');
+const ENGINE = __dirname, VIDEO = path.resolve(args.video || process.cwd()), B = path.join(VIDEO, 'build');
 const tl = JSON.parse(fs.readFileSync(path.join(B, 'timeline.json')));
 const fps = +(args.fps || 30), subs = args.subs !== '0';
 const launch = () => chromium.launch({ executablePath: process.env.CHROMIUM || undefined, args: ['--disable-gpu-vsync', '--force-device-scale-factor=1'] });
 
 async function page(browser) {
   const p = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
-  await p.goto('file://' + path.join(HERE, 'index.html'));
+  await p.goto(pathToFileURL(path.join(ENGINE, 'index.html')).href + '?scenes=' + encodeURIComponent(pathToFileURL(path.join(VIDEO, 'scenes.js')).href));
   await p.evaluate(() => window.ready);
   await p.evaluate(([tl, subs]) => setup(tl, { subs }), [tl, subs]);
   return p;
@@ -66,7 +68,7 @@ async function segment(f0, f1, out) {
     await browser.close(); return;
   }
   if (args.stills) {
-    const dir = args.outdir || path.join(B, 'stills'); fs.mkdirSync(dir, { recursive: true });
+    const dir = args.outdir ? path.resolve(args.outdir) : path.join(B, 'stills'); fs.mkdirSync(dir, { recursive: true });
     const browser = await launch(), p = await page(browser);
     for (const s of args.stills.split(',')) {
       await p.evaluate(t => renderFrame(t), +s);
@@ -76,7 +78,7 @@ async function segment(f0, f1, out) {
   }
   const from = +(args.from || 0), to = Math.min(+(args.to || tl.total), tl.total);
   const F0 = Math.round(from * fps), F1 = Math.round(to * fps), n = +(args.workers || 2);
-  const out = args.out || path.join(B, 'video.mp4');
+  const out = args.out ? path.resolve(args.out) : path.join(B, 'video.mp4');
   const chunk = Math.ceil((F1 - F0) / n), segs = [];
   const jobs = [];
   for (let i = 0; i < n; i++) { const a = F0 + i * chunk, b = Math.min(F1, a + chunk); if (a >= b) break; const s = path.join(B, `seg${i}.mp4`); segs.push(s); jobs.push(segment(a, b, s)); }

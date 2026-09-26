@@ -27,8 +27,8 @@ This MIT license covers the source code in this repository. It does not cover:
 - the voice-over scripts (each video's script.md), which are licensed under
   Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International
   (CC BY-NC-ND 4.0), https://creativecommons.org/licenses/by-nc-nd/4.0/
-- the fonts in each video's fonts/ folder, which keep their own licenses
-  (see the license files next to them)
+- the fonts in engine/fonts/, which keep their own licenses (see the
+  license files next to them)
 - the finished videos as published on YouTube, which are not part of this
   repository and remain all rights reserved
 

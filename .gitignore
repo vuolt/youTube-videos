@@ -8,13 +8,18 @@ node_modules/
 __pycache__/
 *.pyc
 
-# Rendered videos are rebuilt from the code, so they never go in the repo
+# Each video's render output (rebuilt by make.sh), voice recordings (private)
+# and library music (can't be redistributed)
+build/
+vo/
+music/
+subtitles.srt
+
+# Rendered videos and audio never go in the repo
 *.mp4
 *.mov
 *.m4v
 *.webm
-
-# Audio: voice recordings are private, library music can't be redistributed
 *.wav
 *.m4a
 *.aif

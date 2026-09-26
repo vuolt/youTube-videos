@@ -18,7 +18,7 @@
 html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font:15px/1.45 Poppins,system-ui,sans-serif}
 button,select{font:inherit;color:inherit}
 header{display:flex;align-items:center;gap:18px;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
-header h1{font-size:15px;font-weight:600;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:38vw}
+#vid{font-weight:600;max-width:34vw}
 .tabs{display:flex;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px}
 .tabs button{background:none;border:0;padding:5px 14px;border-radius:7px;cursor:pointer;color:var(--dim)}
 .tabs button.on{background:var(--panel2);color:var(--text)}
@@ -78,7 +78,15 @@ main.on{display:flex}
 .lines p.flag::after{content:"retake";margin-left:auto;color:var(--amber);font-size:12px;padding-top:3px}
 .lines h3{margin:16px 12px 6px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--cyan)}
 #start{position:fixed;inset:0;background:rgba(4,5,12,.92);display:flex;align-items:center;justify-content:center;z-index:9}
-#start .box{max-width:520px;text-align:center;padding:30px}
+#start .box{width:min(620px,92vw);text-align:center;padding:30px}
+#start .small{font-size:13px;color:var(--faint)}
+#vids{display:flex;flex-direction:column;gap:10px;margin:18px 0}
+.vcard{display:block;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;cursor:pointer}
+.vcard:hover,.vcard.last{border-color:var(--cyan)}
+.vcard b{display:block;font-weight:600}
+.vcard small{color:var(--dim)}
+.vcard .bar{height:4px;border-radius:2px;background:var(--line);margin-top:10px;overflow:hidden}
+.vcard .bar i{display:block;height:100%;background:var(--green)}
 #start h2{font-size:26px;margin:0 0 10px}
 #start p{color:var(--dim)}
 #toast{position:fixed;bottom:78px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);padding:9px 16px;border-radius:10px;opacity:0;transition:opacity .2s;pointer-events:none}
@@ -87,7 +95,7 @@ main.on{display:flex}
 </head>
 <body>
 <header>
-  <h1 id="title">Recording booth</h1>
+  <select id="vid" title="Video"></select>
   <div class="tabs"><button id="tabRec" class="on">Record</button><button id="tabRev">Review</button></div>
   <div class="spacer"></div>
   <span class="count" id="count"></span>
@@ -130,24 +138,27 @@ main.on{display:flex}
 
 <div id="start"><div class="box">
   <h2>Recording booth</h2>
-  <p>Read each line when you're ready. Press <b>Space</b> to start, and <b>Space</b> again when you've finished the line. The take is saved and the next line comes up.</p>
-  <p>Headphones help if you want to hear takes back while recording.</p>
-  <button class="btn big" id="startBtn">Connect microphone</button>
+  <p>Which video are you working on?</p>
+  <div id="vids"></div>
+  <p class="small">Read each line when you're ready: <b>Space</b> starts recording, <b>Space</b> again saves the take and brings up the next line. The browser will ask to use your microphone.</p>
   <p id="startErr" style="color:var(--pink)"></p>
 </div></div>
 <div id="toast"></div>
 
 <script>
 const $ = id => document.getElementById(id);
-let S = null, idx = 0, mode = 'rec';
+let S = null, idx = 0, mode = 'rec', VID = null, VIDS = [];
 let flags = new Set();
-try { flags = new Set(JSON.parse(localStorage.getItem('booth-flags') || '[]')); } catch (e) {}
-const saveFlags = () => { try { localStorage.setItem('booth-flags', JSON.stringify([...flags])); } catch (e) {} };
+const q = () => 'v=' + encodeURIComponent(VID);
+const store = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+const recall = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+const saveFlags = () => store('booth-flags:' + VID, JSON.stringify([...flags]));
+function loadFlags() { try { flags = new Set(JSON.parse(recall('booth-flags:' + VID) || '[]')); } catch (e) { flags = new Set(); } }
 
 // ---------------- state ----------------
 async function load(keepIdx) {
-  S = await (await fetch('/api/state')).json();
-  $('title').textContent = S.title + ' · recording booth';
+  S = await (await fetch('/api/state?' + q())).json();
+  document.title = S.title + ' · recording booth';
   if (!keepIdx) { const first = S.lines.findIndex(l => !l.take); idx = first < 0 ? 0 : first; }
   buildStrip(); buildLines(); showLine(); updateCount(); setupFinal();
 }
@@ -206,7 +217,7 @@ function loopPreview(once) {
   const l = S.lines[idx];
   $('pvNone').hidden = !!S.preview;
   if (!S.preview || !l.preview) { seg = null; pv.pause(); return; }
-  if (!pv.src) pv.src = '/preview.mp4';
+  if (pv.dataset.for !== VID) { pv.src = '/preview.mp4?' + q(); pv.dataset.for = VID; }
   seg = [Math.max(0, l.preview[0] - 0.4), l.preview[1] + 0.6];
   holdAtEnd = once;
   pv.currentTime = seg[0];
@@ -276,7 +287,7 @@ async function stopRec() {
   if (pcm.length < sr * 0.4) { setStatus('Too short, not saved'); loopPreview(false); return; }
   let clipped = 0; for (let i = 0; i < pcm.length; i++) if (Math.abs(pcm[i]) > 0.99) clipped++;
   setStatus('Saving…');
-  const res = await fetch(`/api/take/${String(l.n).padStart(3, '0')}`, { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body: wav(pcm, sr) });
+  const res = await fetch(`/api/take/${String(l.n).padStart(3, '0')}?${q()}`, { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body: wav(pcm, sr) });
   if (!res.ok) { setStatus('Save failed'); return; }
   l.take = (await res.json()).take;
   flags.delete(l.n); saveFlags();
@@ -300,7 +311,7 @@ let player = null;
 function playTake() {
   const l = S.lines[idx]; if (!l.take || rec) return;
   if (player) player.pause();
-  player = new Audio(`/vo/${String(l.n).padStart(3, '0')}?v=${l.take.mtime}`);
+  player = new Audio(`/vo/${String(l.n).padStart(3, '0')}?${q()}&t=${l.take.mtime}`);
   player.play();
 }
 $('recBtn').onclick = e => { e.target.blur(); rec ? stopRec() : startRec(); };
@@ -321,8 +332,9 @@ function buildLines() {
 }
 function setupFinal() {
   const b = $('revBanner'); b.hidden = false; b.className = 'banner';
-  if (!S.final) { fv.removeAttribute('src'); b.innerHTML = 'No full build yet. Record some lines, stop the booth, run <b>./make.sh</b>, then start the booth again.'; return; }
-  if (!fv.src.endsWith('/final.mp4?v=' + S.finalMtime)) fv.src = '/final.mp4?v=' + S.finalMtime;
+  if (!S.final) { fv.removeAttribute('src'); fv.dataset.src = ''; b.innerHTML = 'No full build yet. Record some lines, stop the booth, run <b>./make.sh</b>, then start the booth again.'; return; }
+  const want = '/final.mp4?' + q() + '&t=' + S.finalMtime;
+  if (fv.dataset.src !== want) { fv.src = want; fv.dataset.src = want; }
   const newer = S.lines.filter(l => l.take && l.take.mtime > S.finalMtime).length;
   if (S.finalMode === 'estimate') { b.classList.add('warn'); b.innerHTML = 'This build has no voice yet (timing is estimated). Record lines, then run <b>./make.sh</b>.'; }
   else if (newer) { b.classList.add('warn'); b.innerHTML = `${newer} line${newer > 1 ? 's' : ''} recorded since this build. Run <b>./make.sh</b> to hear them in the video.`; }
@@ -363,7 +375,7 @@ function setMode(m) {
 $('tabRec').onclick = e => { e.target.blur(); if (!rec) setMode('rec'); };
 $('tabRev').onclick = e => { e.target.blur(); if (!rec) setMode('rev'); };
 document.addEventListener('keydown', e => {
-  if (e.metaKey || e.ctrlKey || e.altKey || !S || !$('start').hidden) return;
+  if (e.metaKey || e.ctrlKey || e.altKey || !S || !$('start').hidden || e.target.tagName === 'SELECT') return;
   const k = e.key;
   if (mode === 'rec') {
     if (k === ' ') { e.preventDefault(); if (!e.repeat) rec ? stopRec() : startRec(); }
@@ -377,11 +389,39 @@ document.addEventListener('keydown', e => {
     else if (k === 'r' || k === 'R') { const l = curFinalLine(); if (l) { idx = S.lines.indexOf(l); setMode('rec'); } }
   }
 });
-$('startBtn').onclick = async () => {
-  try { await connectMic(); $('start').hidden = true; showLine(); }
-  catch (err) { $('startErr').textContent = 'Could not use the microphone: ' + err.message + '. Allow microphone access for this page and try again.'; }
-};
-load(false);
+async function pickVideo(id) {
+  if (rec) return;
+  VID = id; store('booth-video', id); loadFlags();
+  history.replaceState(null, '', '?' + q());
+  $('vid').value = id;
+  idx = 0; lastOn = null; pv.pause(); fv.pause();
+  await load(false);
+}
+$('vid').onchange = async e => { e.target.blur(); await pickVideo(e.target.value); if (mode === 'rev') setMode('rev'); };
+async function start() {
+  VIDS = await (await fetch('/api/videos')).json();
+  const sel = $('vid'); sel.innerHTML = '';
+  VIDS.forEach(v => { const o = document.createElement('option'); o.value = v.id; o.textContent = v.title; sel.appendChild(o); });
+  const wanted = new URLSearchParams(location.search).get('v') || recall('booth-video');
+  const box = $('vids'); box.innerHTML = '';
+  VIDS.forEach(v => {
+    const b = document.createElement('button'); b.className = 'vcard' + (v.id === wanted ? ' last' : '');
+    const pct = v.lines ? Math.round(100 * v.recorded / v.lines) : 0;
+    b.innerHTML = '<b></b><small></small><div class="bar"><i></i></div>';
+    b.querySelector('b').textContent = v.title;
+    b.querySelector('small').textContent = `${v.id}  ·  ${v.recorded} of ${v.lines} lines recorded`;
+    b.querySelector('i').style.width = pct + '%';
+    b.onclick = async () => {
+      try { await connectMic(); } catch (err) {
+        $('startErr').textContent = 'Could not use the microphone: ' + err.message + '. Allow microphone access for this page and try again.'; return;
+      }
+      await pickVideo(v.id); $('start').hidden = true;
+    };
+    box.appendChild(b);
+  });
+  if (!VIDS.length) box.textContent = 'No videos found: a video is a folder with a script.md in it.';
+}
+start();
 </script>
 </body>
 </html>
