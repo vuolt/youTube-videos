@@ -53,6 +53,8 @@ main.on{display:flex}
 .btn{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 14px;cursor:pointer}
 .btn:hover{border-color:var(--faint)}
 .btn:disabled{opacity:.55;cursor:default}
+.btn.playing{border-color:var(--cyan);color:var(--cyan);font-variant-numeric:tabular-nums;
+  background-image:linear-gradient(90deg,rgba(92,225,255,.22) var(--p,0%),transparent var(--p,0%))}
 .btn.big{background:var(--pink);border-color:var(--pink);color:#fff;font-weight:600;padding:10px 20px}
 .btn.big.stop{background:var(--panel2);border-color:var(--pink);color:var(--pink)}
 .keys{color:var(--faint);font-size:13px;padding:0 28px 10px}
@@ -208,6 +210,7 @@ function paintStrip() {
   });
 }
 function showLine() {
+  stopPlay();
   const l = S.lines[idx], p = S.lines[idx - 1], n = S.lines[idx + 1];
   $('section').textContent = l.section;
   $('num').textContent = `Line ${l.n} of ${S.lines.length}`;
@@ -295,6 +298,7 @@ const TRIM_START = 0.15;   // drop the key click at the start
 const TRIM_END = 0.05;     // ...and at the end
 function startRec() {
   if (!actx || rec) return;
+  stopPlay();
   chunks = []; rec = true; recStartAt = performance.now();
   setStatus(); loopPreview(true);
 }
@@ -329,12 +333,32 @@ function wav(pcm, sr) {
   for (let i = 0; i < pcm.length; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, pcm[i])) * 32767, true);
   return new Blob([buf], { type: 'audio/wav' });
 }
-let player = null;
+// playback of the saved take: the button turns into a Stop button with a progress fill,
+// and the animation restarts from the line's start so you see it alongside
+let player = null, playLoop = false;
 function playTake() {
   const l = S.lines[idx]; if (!l.take || rec) return;
-  if (player) player.pause();
-  player = new Audio(`/vo/${String(l.n).padStart(3, '0')}?${q()}&t=${l.take.mtime}`);
-  player.play();
+  if (player) { stopPlay(); return; }
+  const a = new Audio(`/vo/${String(l.n).padStart(3, '0')}?${q()}&t=${l.take.mtime}`);
+  player = a;
+  a.onended = () => { if (player === a) stopPlay(); };
+  a.onerror = () => { if (player === a) { stopPlay(); toast('Could not play that take'); } };
+  a.play().catch(() => { if (player === a) stopPlay(); });
+  loopPreview(true);
+  if (!playLoop) { playLoop = true; paintPlay(); }
+}
+function stopPlay() {
+  if (player) { player.pause(); player = null; }
+  const b = $('playBtn');
+  b.textContent = '▶ Play take'; b.classList.remove('playing'); b.style.setProperty('--p', '0%');
+}
+function paintPlay() {
+  if (!player) { playLoop = false; return; }
+  const b = $('playBtn'), d = player.duration, c = player.currentTime;
+  b.classList.add('playing');
+  b.textContent = `■ Stop  ${c.toFixed(1)} / ${isFinite(d) ? d.toFixed(1) : '…'} s`;
+  b.style.setProperty('--p', isFinite(d) && d > 0 ? (100 * c / d).toFixed(1) + '%' : '0%');
+  requestAnimationFrame(paintPlay);
 }
 $('recBtn').onclick = e => { e.target.blur(); rec ? stopRec() : startRec(); };
 $('playBtn').onclick = e => { e.target.blur(); playTake(); };
